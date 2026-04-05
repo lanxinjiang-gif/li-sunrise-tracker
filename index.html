@@ -302,6 +302,12 @@ let appData = []; // array of { date, sunrise, sunset, locations: [{loc, sunrise
 let selectedDayIdx = null;
 
 // ── Utilities ──────────────────────────────────────────────────────────────
+function mapsUrl(loc) {
+  return `https://www.google.com/maps?q=${loc.lat},${loc.lon}`;
+}
+function locLink(loc, extra) {
+  return `<a href="${mapsUrl(loc)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;text-decoration-color:var(--border)">${loc.name}</a>${extra || ''}`;
+}
 function scoreLabel(s) {
   if (s >= 80) return 'excellent';
   if (s >= 60) return 'good';
@@ -503,7 +509,7 @@ function renderTopPicks() {
       <div>
         <div class="label">Best Sunrise This Week</div>
         <div class="day-name">${srDayName} — ${formatTime(srDay.sunrise)}</div>
-        <div class="location-name">📍 ${srBest.loc.name} (${srBest.loc.drive})</div>
+        <div class="location-name">📍 ${locLink(srBest.loc)} (${srBest.loc.drive})</div>
       </div>
       <div class="score-big" style="color:var(--accent-sunrise)">${srBest.sunriseScore.score}</div>
     </div>
@@ -512,7 +518,7 @@ function renderTopPicks() {
       <div>
         <div class="label">Best Sunset This Week</div>
         <div class="day-name">${ssDayName} — ${formatTime(ssDay.sunset)}</div>
-        <div class="location-name">📍 ${ssBest.loc.name} (${ssBest.loc.drive})</div>
+        <div class="location-name">📍 ${locLink(ssBest.loc)} (${ssBest.loc.drive})</div>
       </div>
       <div class="score-big" style="color:var(--accent-sunset)">${ssBest.sunsetScore.score}</div>
     </div>
@@ -591,7 +597,7 @@ function renderDetailPanel(idx) {
       const d = ls[key];
       const lbl = scoreLabel(d.score);
       return `<tr>
-        <td>${rankBadge(rank)} ${ls.loc.name}</td>
+        <td>${rankBadge(rank)} ${locLink(ls.loc)}</td>
         <td><span class="score-pill ${lbl}" style="font-size:0.75rem">${d.score}</span></td>
         <td>${cloudBarHTML(d)}</td>
         <td style="color:var(--muted);font-size:0.75rem">${d.vis}km vis</td>
