@@ -370,13 +370,18 @@ function scoreWindow(hourly, dayOffset, targetLocalHour) {
 }
 
 // ── API Fetches ────────────────────────────────────────────────────────────
-async function fetchWeather(lat, lon) {
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+async function fetchAllWeather() {
+  // Batch all locations into one request using comma-separated lat/lon lists
+  const lats = LOCATIONS.map(l => l.lat).join(',');
+  const lons = LOCATIONS.map(l => l.lon).join(',');
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}` +
     `&hourly=cloud_cover_low,cloud_cover_mid,cloud_cover_high,visibility,precipitation_probability` +
     `&forecast_days=7&timezone=America%2FNew_York`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(`Weather API error ${r.status}`);
-  return r.json();
+  const data = await r.json();
+  // API returns array when multiple locations are requested
+  return Array.isArray(data) ? data : [data];
 }
 
 async function fetchSunTimes(lat, lon, dateStr) {
@@ -420,20 +425,16 @@ async function loadAll() {
     '<div class="spinner"></div>Fetching weather & sun times for 8 locations…';
 
   try {
-    // Fetch all weather data in parallel
-    const weatherResults = await Promise.all(
-      LOCATIONS.map(loc => fetchWeather(loc.lat, loc.lon))
-    );
+    // Fetch all 8 locations in one batched request
+    const weatherResults = await fetchAllWeather();
 
-    // Fetch sun times for each day (use location[0] = Robert Moses, representative)
+    // Fetch sun times sequentially to avoid rate limiting (one location, 7 days)
     const days = 7;
     const refLoc = LOCATIONS[0];
-    const sunResults = await Promise.all(
-      Array.from({ length: days }, (_, i) => {
-        const ds = getDateStr(i);
-        return fetchSunTimes(refLoc.lat, refLoc.lon, ds);
-      })
-    );
+    const sunResults = [];
+    for (let i = 0; i < days; i++) {
+      sunResults.push(await fetchSunTimes(refLoc.lat, refLoc.lon, getDateStr(i)));
+    }
 
     // Build appData
     appData = [];
