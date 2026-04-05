@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LI Sunrise & Sunset Tracker</title>
+<style>
+  :root {
+    --bg: #f0f4f8;
+    --card-bg: #ffffff;
+    --card-hover: #e8f0fa;
+    --border: #d0dce8;
+    --text: #1a2535;
+    --muted: #6b7a8d;
+    --accent-sunrise: #e06b00;
+    --accent-sunset: #6d28d9;
+    --excellent: #059669;
+    --good: #2563eb;
+    --fair: #d97706;
+    --poor: #dc2626;
+    --gold: #d97706;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    padding: 0 0 40px;
+  }
+
+  /* ── Header ── */
+  header {
+    background: linear-gradient(135deg, #dbeafe 0%, #ede9fe 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 22px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  header h1 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  header h1 span.sun { color: var(--accent-sunrise); }
+  header h1 span.moon { color: var(--accent-sunset); }
+  #last-updated { font-size: 0.78rem; color: var(--muted); }
+  #refresh-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    transition: background 0.15s;
+  }
+  #refresh-btn:hover { background: var(--card-hover); }
+
+  /* ── Loading / Error ── */
+  #status-bar {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent-sunrise);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Top Picks ── */
+  #top-picks {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    padding: 20px 24px 0;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .top-pick {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+  }
+  .top-pick .icon { font-size: 2rem; flex-shrink: 0; line-height: 1; }
+  .top-pick .label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 4px; }
+  .top-pick .day-name { font-size: 1.05rem; font-weight: 700; }
+  .top-pick .location-name { font-size: 0.88rem; color: var(--muted); margin-top: 2px; }
+  .top-pick .score-big {
+    margin-left: auto;
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  /* ── 7-Day Grid ── */
+  #days-section { padding: 20px 24px 0; max-width: 1100px; margin: 0 auto; }
+  #days-section h2 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 12px; }
+  #days-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+    gap: 10px;
+  }
+
+  .day-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 12px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    position: relative;
+  }
+  .day-card:hover { background: var(--card-hover); border-color: #2d4263; transform: translateY(-1px); }
+  .day-card.selected { border-color: var(--accent-sunrise); background: #16202f; }
+  .day-card .day-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  .day-card .day-date { font-size: 1rem; font-weight: 700; margin: 2px 0 10px; }
+
+  .sun-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+    font-size: 0.8rem;
+  }
+  .sun-row .sun-icon { font-size: 0.95rem; flex-shrink: 0; }
+  .sun-row .sun-time { color: var(--muted); font-size: 0.72rem; min-width: 44px; }
+  .sun-row .score-pill {
+    margin-left: auto;
+    padding: 1px 7px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .score-pill.excellent { background: rgba(16,185,129,0.18); color: var(--excellent); }
+  .score-pill.good      { background: rgba(59,130,246,0.18); color: var(--good); }
+  .score-pill.fair      { background: rgba(245,158,11,0.18);  color: var(--fair); }
+  .score-pill.poor      { background: rgba(239,68,68,0.18);   color: var(--poor); }
+
+  /* ── Detail Panel ── */
+  #detail-panel {
+    display: none;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px 24px;
+    margin-top: 14px;
+    max-width: 1100px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  #detail-panel.visible { display: block; }
+  #detail-panel h3 { font-size: 1rem; font-weight: 700; margin-bottom: 16px; }
+
+  .detail-section { margin-bottom: 20px; }
+  .detail-section h4 {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--muted);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .loc-table { width: 100%; border-collapse: collapse; }
+  .loc-table th {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    text-align: left;
+    padding: 0 8px 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .loc-table td {
+    padding: 8px 8px 8px 0;
+    font-size: 0.82rem;
+    border-bottom: 1px solid #e2eaf4;
+    vertical-align: middle;
+  }
+  .loc-table tr:last-child td { border-bottom: none; }
+  .rank-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    font-size: 0.65rem;
+    font-weight: 700;
+    background: var(--border);
+    color: var(--muted);
+    margin-right: 6px;
+  }
+  .rank-badge.gold   { background: rgba(251,191,36,0.2); color: var(--gold); }
+  .rank-badge.silver { background: rgba(148,163,184,0.2); color: #94a3b8; }
+  .rank-badge.bronze { background: rgba(180,120,60,0.2);  color: #b47c3c; }
+
+  /* cloud bar */
+  .cloud-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; width: 80px; gap: 1px; }
+  .cloud-bar .cb-low  { background: #ef4444; }
+  .cloud-bar .cb-mid  { background: #f59e0b; }
+  .cloud-bar .cb-high { background: #3b82f6; }
+  .cloud-bar .cb-clear { background: #d0dce8; flex: 1; }
+
+  .detail-meta { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 8px; }
+  .meta-chip {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    background: #e8f0fa;
+    padding: 4px 10px;
+    border-radius: 20px;
+  }
+  .meta-chip span { color: var(--text); font-weight: 600; }
+
+  /* ── Footer ── */
+  footer {
+    max-width: 1100px;
+    margin: 28px auto 0;
+    padding: 0 24px;
+    font-size: 0.72rem;
+    color: var(--muted);
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  footer a { color: var(--muted); text-decoration: underline; }
+
+  @media (max-width: 600px) {
+    #top-picks { grid-template-columns: 1fr; }
+    #days-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🌅 Long Island <span class="sun">Sunrise</span> &amp; <span class="moon">Sunset</span> Tracker</h1>
+    <div id="last-updated">Loading…</div>
+  </div>
+  <button id="refresh-btn" onclick="loadAll()">⟳ Refresh</button>
+</header>
+
+<div id="status-bar">
+  <div class="spinner"></div>
+  Fetching weather &amp; sun times for 8 locations…
+</div>
+
+<div id="app" style="display:none">
+  <div id="top-picks"></div>
+
+  <div id="days-section">
+    <h2>7-Day Forecast</h2>
+    <div id="days-grid"></div>
+    <div id="detail-panel"></div>
+  </div>
+</div>
+
+<footer id="footer" style="display:none">
+  <span>Weather: <a href="https://open-meteo.com/" target="_blank">Open-Meteo</a></span>
+  <span>·</span>
+  <span>Sun times: <a href="https://sunrise-sunset.org/api" target="_blank">Sunrise-Sunset.org</a></span>
+  <span>·</span>
+  <span>Locations within ~40 min of Ronkonkoma, NY</span>
+</footer>
+
+<script>
+// ── Locations ──────────────────────────────────────────────────────────────
+const LOCATIONS = [
+  { name: 'Robert Moses SP',     lat: 40.6200, lon: -73.2600, best: 'sunset',  drive: '~35 min', note: 'S-facing Atlantic Ocean' },
+  { name: 'Jones Beach SP',      lat: 40.5960, lon: -73.5164, best: 'sunset',  drive: '~40 min', note: 'SW-facing Atlantic Ocean' },
+  { name: 'Sunken Meadow SP',    lat: 40.9058, lon: -73.2603, best: 'sunrise', drive: '~30 min', note: 'N-facing Long Island Sound' },
+  { name: 'Heckscher SP',        lat: 40.7083, lon: -73.1664, best: 'both',    drive: '~15 min', note: 'Great South Bay views' },
+  { name: 'Wildwood SP',         lat: 40.9609, lon: -72.7959, best: 'sunrise', drive: '~35 min', note: 'N-facing Long Island Sound' },
+  { name: 'Caumsett SP',         lat: 40.9420, lon: -73.4769, best: 'sunrise', drive: '~40 min', note: 'N-facing Long Island Sound' },
+  { name: 'West Meadow Beach',   lat: 40.9316, lon: -73.1425, best: 'sunrise', drive: '~20 min', note: 'N-facing Long Island Sound' },
+  { name: 'Kings Park Bluff',    lat: 40.8900, lon: -73.2493, best: 'both',    drive: '~25 min', note: 'Bluff over Long Island Sound' },
+];
+
+// ── State ──────────────────────────────────────────────────────────────────
+let appData = []; // array of { date, sunrise, sunset, locations: [{loc, sunriseScore, sunsetScore, detail}] }
+let selectedDayIdx = null;
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+function scoreLabel(s) {
+  if (s >= 80) return 'excellent';
+  if (s >= 60) return 'good';
+  if (s >= 40) return 'fair';
+  return 'poor';
+}
+function scoreEmoji(s) {
+  if (s >= 80) return '✨';
+  if (s >= 60) return '👍';
+  if (s >= 40) return '🌤️';
+  return '☁️';
+}
+
+/**
+ * Score viewing conditions for a 2-hour window (targetHour ± 1h).
+ * hourly: object with arrays indexed by hour-of-day (0–167 for 7 days)
+ * dayOffset: 0-based day index
+ */
+function scoreWindow(hourly, dayOffset, targetLocalHour) {
+  const base = dayOffset * 24;
+  // ±1 hour window, clamped
+  const indices = [];
+  for (let h = -1; h <= 1; h++) {
+    const idx = base + targetLocalHour + h;
+    if (idx >= 0 && idx < hourly.cloud_cover_low.length) indices.push(idx);
+  }
+  if (!indices.length) return 0;
+
+  const avg = key => indices.reduce((s, i) => s + (hourly[key][i] ?? 0), 0) / indices.length;
+
+  const low  = avg('cloud_cover_low');   // bad  (0-100%)
+  const mid  = avg('cloud_cover_mid');   // colorful (0-100%)
+  const high = avg('cloud_cover_high');  // ok   (0-100%)
+  const vis  = avg('visibility');        // meters, max useful ~24000
+  const precip = avg('precipitation_probability');
+
+  // Cloud score (50 pts): reward mid+high, punish low
+  let cloudScore = 50;
+  cloudScore -= low  * 0.65;            // low clouds are scene-killers
+  cloudScore += Math.min(mid, 70)  * 0.25; // mid clouds add color canvas
+  cloudScore += Math.min(high, 60) * 0.15; // high clouds add streaks
+  cloudScore = Math.max(0, Math.min(50, cloudScore));
+
+  // Visibility score (25 pts)
+  const visScore = Math.min(25, (vis / 24000) * 25);
+
+  // No-precip score (25 pts)
+  const precipScore = ((100 - precip) / 100) * 25;
+
+  const total = Math.round(cloudScore + visScore + precipScore);
+
+  return {
+    score: total,
+    low: Math.round(low),
+    mid: Math.round(mid),
+    high: Math.round(high),
+    vis: Math.round(vis / 1000 * 10) / 10,  // km
+    precip: Math.round(precip),
+  };
+}
+
+// ── API Fetches ────────────────────────────────────────────────────────────
+async function fetchWeather(lat, lon) {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+    `&hourly=cloud_cover_low,cloud_cover_mid,cloud_cover_high,visibility,precipitation_probability` +
+    `&forecast_days=7&timezone=America%2FNew_York`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`Weather API error ${r.status}`);
+  return r.json();
+}
+
+async function fetchSunTimes(lat, lon, dateStr) {
+  // Returns times in UTC; we'll convert to Eastern
+  const url = `https://api.sunrise-sunset.org/json?lat=${lat}&lng=${lon}&date=${dateStr}&formatted=0`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`Sun API error ${r.status}`);
+  return r.json();
+}
+
+function utcToLocalHour(isoStr) {
+  // isoStr is UTC, convert to local system time hour
+  const d = new Date(isoStr);
+  return d.getHours() + d.getMinutes() / 60;
+}
+
+function formatTime(isoStr) {
+  const d = new Date(isoStr);
+  return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
+function getDateStr(offsetDays) {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatDayLabel(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  const day = d.toLocaleDateString('en-US', { weekday: 'short' });
+  const date = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return { day, date };
+}
+
+// ── Main Load ──────────────────────────────────────────────────────────────
+async function loadAll() {
+  document.getElementById('status-bar').style.display = 'block';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('footer').style.display = 'none';
+  document.getElementById('status-bar').innerHTML =
+    '<div class="spinner"></div>Fetching weather & sun times for 8 locations…';
+
+  try {
+    // Fetch all weather data in parallel
+    const weatherResults = await Promise.all(
+      LOCATIONS.map(loc => fetchWeather(loc.lat, loc.lon))
+    );
+
+    // Fetch sun times for each day (use location[0] = Robert Moses, representative)
+    const days = 7;
+    const refLoc = LOCATIONS[0];
+    const sunResults = await Promise.all(
+      Array.from({ length: days }, (_, i) => {
+        const ds = getDateStr(i);
+        return fetchSunTimes(refLoc.lat, refLoc.lon, ds);
+      })
+    );
+
+    // Build appData
+    appData = [];
+    for (let d = 0; d < days; d++) {
+      const dateStr = getDateStr(d);
+      const sun = sunResults[d].results;
+      const sunriseHour = utcToLocalHour(sun.sunrise);
+      const sunsetHour  = utcToLocalHour(sun.sunset);
+
+      const locScores = LOCATIONS.map((loc, li) => {
+        const hourly = weatherResults[li].hourly;
+        const srScore = scoreWindow(hourly, d, Math.round(sunriseHour));
+        const ssScore = scoreWindow(hourly, d, Math.round(sunsetHour));
+        return { loc, sunriseScore: srScore, sunsetScore: ssScore };
+      });
+
+      appData.push({
+        dateStr,
+        sunrise: sun.sunrise,
+        sunset: sun.sunset,
+        sunriseHour,
+        sunsetHour,
+        locScores,
+      });
+    }
+
+    render();
+    document.getElementById('status-bar').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    document.getElementById('footer').style.display = 'flex';
+    document.getElementById('last-updated').textContent =
+      'Updated ' + new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+  } catch (err) {
+    document.getElementById('status-bar').innerHTML =
+      `<div style="color:#ef4444">⚠️ Failed to load data: ${err.message}<br><small>Check your internet connection and try again.</small></div>`;
+  }
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function render() {
+  renderTopPicks();
+  renderDaysGrid();
+}
+
+function bestForType(dayData, type) {
+  // type = 'sunrise' | 'sunset'
+  const key = type === 'sunrise' ? 'sunriseScore' : 'sunsetScore';
+  return [...dayData.locScores].sort((a, b) => b[key].score - a[key].score)[0];
+}
+
+function renderTopPicks() {
+  // Find best sunrise day and best sunset day across the week
+  let bestSR = null, bestSS = null;
+  for (let d = 0; d < appData.length; d++) {
+    const day = appData[d];
+    const sr = bestForType(day, 'sunrise');
+    const ss = bestForType(day, 'sunset');
+    if (!bestSR || sr.sunriseScore.score > bestForType(appData[bestSR], 'sunrise').sunriseScore.score) bestSR = d;
+    if (!bestSS || ss.sunsetScore.score  > bestForType(appData[bestSS], 'sunset').sunsetScore.score)   bestSS = d;
+  }
+
+  const srDay  = appData[bestSR];
+  const ssDay  = appData[bestSS];
+  const srBest = bestForType(srDay, 'sunrise');
+  const ssBest = bestForType(ssDay, 'sunset');
+  const { day: srDayName } = formatDayLabel(srDay.dateStr);
+  const { day: ssDayName } = formatDayLabel(ssDay.dateStr);
+
+  document.getElementById('top-picks').innerHTML = `
+    <div class="top-pick">
+      <div class="icon">🌅</div>
+      <div>
+        <div class="label">Best Sunrise This Week</div>
+        <div class="day-name">${srDayName} — ${formatTime(srDay.sunrise)}</div>
+        <div class="location-name">📍 ${srBest.loc.name} (${srBest.loc.drive})</div>
+      </div>
+      <div class="score-big" style="color:var(--accent-sunrise)">${srBest.sunriseScore.score}</div>
+    </div>
+    <div class="top-pick">
+      <div class="icon">🌇</div>
+      <div>
+        <div class="label">Best Sunset This Week</div>
+        <div class="day-name">${ssDayName} — ${formatTime(ssDay.sunset)}</div>
+        <div class="location-name">📍 ${ssBest.loc.name} (${ssBest.loc.drive})</div>
+      </div>
+      <div class="score-big" style="color:var(--accent-sunset)">${ssBest.sunsetScore.score}</div>
+    </div>
+  `;
+}
+
+function renderDaysGrid() {
+  const grid = document.getElementById('days-grid');
+  grid.innerHTML = appData.map((day, i) => {
+    const { day: dayName, date } = formatDayLabel(day.dateStr);
+    const srBest = bestForType(day, 'sunrise');
+    const ssBest = bestForType(day, 'sunset');
+    const srLabel = scoreLabel(srBest.sunriseScore.score);
+    const ssLabel = scoreLabel(ssBest.sunsetScore.score);
+
+    return `
+      <div class="day-card ${selectedDayIdx === i ? 'selected' : ''}" onclick="selectDay(${i})">
+        <div class="day-label">${dayName}</div>
+        <div class="day-date">${date}</div>
+        <div class="sun-row">
+          <span class="sun-icon">🌅</span>
+          <span class="sun-time">${formatTime(day.sunrise)}</span>
+          <span class="score-pill ${srLabel}">${srBest.sunriseScore.score}</span>
+        </div>
+        <div class="sun-row">
+          <span class="sun-icon">🌇</span>
+          <span class="sun-time">${formatTime(day.sunset)}</span>
+          <span class="score-pill ${ssLabel}">${ssBest.sunsetScore.score}</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function selectDay(idx) {
+  if (selectedDayIdx === idx) {
+    selectedDayIdx = null;
+    document.getElementById('detail-panel').classList.remove('visible');
+    renderDaysGrid();
+    return;
+  }
+  selectedDayIdx = idx;
+  renderDaysGrid();
+  renderDetailPanel(idx);
+}
+
+function rankBadge(rank) {
+  if (rank === 0) return '<span class="rank-badge gold">1</span>';
+  if (rank === 1) return '<span class="rank-badge silver">2</span>';
+  if (rank === 2) return '<span class="rank-badge bronze">3</span>';
+  return `<span class="rank-badge">${rank + 1}</span>`;
+}
+
+function cloudBarHTML(d) {
+  const total = d.low + d.mid + d.high;
+  const clear = Math.max(0, 100 - total);
+  // Normalize to 80px via flex widths
+  return `<div class="cloud-bar">
+    <div class="cb-low"  style="flex:${d.low}"></div>
+    <div class="cb-mid"  style="flex:${d.mid}"></div>
+    <div class="cb-high" style="flex:${d.high}"></div>
+    <div class="cb-clear" style="flex:${clear}"></div>
+  </div>`;
+}
+
+function renderDetailPanel(idx) {
+  const day = appData[idx];
+  const { day: dayName, date } = formatDayLabel(day.dateStr);
+
+  const buildTable = (type) => {
+    const key = type === 'sunrise' ? 'sunriseScore' : 'sunsetScore';
+    const icon = type === 'sunrise' ? '🌅' : '🌇';
+    const time = type === 'sunrise' ? day.sunrise : day.sunset;
+    const sorted = [...day.locScores].sort((a, b) => b[key].score - a[key].score);
+
+    const rows = sorted.map((ls, rank) => {
+      const d = ls[key];
+      const lbl = scoreLabel(d.score);
+      return `<tr>
+        <td>${rankBadge(rank)} ${ls.loc.name}</td>
+        <td><span class="score-pill ${lbl}" style="font-size:0.75rem">${d.score}</span></td>
+        <td>${cloudBarHTML(d)}</td>
+        <td style="color:var(--muted);font-size:0.75rem">${d.vis}km vis</td>
+        <td style="color:var(--muted);font-size:0.75rem">${d.precip}% rain</td>
+        <td style="color:var(--muted);font-size:0.75rem">${ls.loc.drive}</td>
+      </tr>`;
+    }).join('');
+
+    return `
+      <div class="detail-section">
+        <h4>${icon} ${type === 'sunrise' ? 'Sunrise' : 'Sunset'} Rankings — ${formatTime(time)}</h4>
+        <table class="loc-table">
+          <thead><tr>
+            <th>Location</th><th>Score</th>
+            <th title="Red=low clouds, Yellow=mid, Blue=high">Clouds</th>
+            <th>Visibility</th><th>Rain%</th><th>Drive</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  };
+
+  const panel = document.getElementById('detail-panel');
+  panel.innerHTML = `
+    <h3>${dayName}, ${date}</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;flex-wrap:wrap">
+      <div>${buildTable('sunrise')}</div>
+      <div>${buildTable('sunset')}</div>
+    </div>
+    <div class="detail-meta">
+      <div class="meta-chip">🌅 Sunrise <span>${formatTime(day.sunrise)}</span></div>
+      <div class="meta-chip">🌇 Sunset <span>${formatTime(day.sunset)}</span></div>
+      <div class="meta-chip">☁️ Cloud bar: <span style="color:#ef4444">red</span>=low &nbsp;<span style="color:#f59e0b">yel</span>=mid &nbsp;<span style="color:#3b82f6">blue</span>=high</div>
+    </div>
+  `;
+  panel.classList.add('visible');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+loadAll();
+</script>
+</body>
+</html>
